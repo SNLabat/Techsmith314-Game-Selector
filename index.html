@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MTPlay a Game</title>
+    <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .logo {
+            width: 128px;
+            height: 128px;
+            margin-bottom: 20px;
+        }
+        .title {
+            color: #FFA500;
+            font-size: 24px;
+            margin: 20px 0;
+        }
+        .button {
+            background-color: #FF0000;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            margin: 20px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #CC0000;
+        }
+        .game-card {
+            background-color: #222;
+            border: 2px solid #FF0000;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        .game-link {
+            color: white;
+            text-decoration: underline;
+            display: block;
+            margin: 10px 0;
+        }
+        .game-link:hover {
+            color: #FFA500;
+        }
+        .loading {
+            display: none;
+            color: white;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <img src="./assets/logo.png" alt="Tech Logo" class="logo">
+    <h1 class="title">Techsmith314 Game Selector</h1>
+    <button id="pickButton" class="button">Choose a Random Game</button>
+    <div id="loading" class="loading">Loading games...</div>
+
+    <div id="gameCard" class="game-card">
+        <h2 id="gameName"></h2>
+        <a id="gameLink" class="game-link" target="_blank">View on Steam</a>
+        <p>Suggested by: <span id="suggester"></span></p>
+        <p>Date: <span id="date"></span></p>
+    </div>
+
+    <script>
+        let games = [];
+        const button = document.getElementById('pickButton');
+        const loading = document.getElementById('loading');
+        const gameCard = document.getElementById('gameCard');
+
+        // Load games when page loads
+        window.addEventListener('load', loadGames);
+
+        async function loadGames() {
+            try {
+                button.disabled = true;
+                loading.style.display = 'block';
+
+                const response = await fetch('./Tech Game Database.csv');
+                const text = await response.text();
+
+                const result = Papa.parse(text, {
+                    header: true,
+                    skipEmptyLines: true
+                });
+
+                games = result.data
+                    .map(row => ({
+                        name: row['anchor_af404b (3)'] || 'Unknown Game',
+                        url: row['anchor_af404b href'] || '',
+                        username: row['username_f9f2ca'] || 'Anonymous',
+                        timestamp: row['timestamp_f9f2ca'] ? row['timestamp_f9f2ca'].replace('— \n', '') : 'Unknown Date'
+                    }))
+                    .filter(game => game.name !== 'Unknown Game' && game.url);
+
+                button.disabled = false;
+                loading.style.display = 'none';
+            } catch (error) {
+                console.error('Error loading games:', error);
+                loading.textContent = 'Error loading games. Please try again later.';
+            }
+        }
+
+        function pickRandomGame() {
+            if (games.length > 0) {
+                const randomGame = games[Math.floor(Math.random() * games.length)];
+
+                document.getElementById('gameName').textContent = randomGame.name;
+                document.getElementById('gameLink').href = randomGame.url;
+                document.getElementById('suggester').textContent = randomGame.username;
+                document.getElementById('date').textContent = randomGame.timestamp;
+
+                gameCard.style.display = 'block';
+            }
+        }
+
+        button.addEventListener('click', pickRandomGame);
+    </script>
+</body>
+</html>
