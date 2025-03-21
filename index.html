@@ -1,28 +1,44 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MTPlay a Game</title>
+    <title>Techsmith314 Game Selector</title>
     <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
     <style>
+        @font-face {
+            font-family: 'RoboFan';
+            src: url('./fonts/robofan.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
         body {
             background-color: black;
             color: white;
             text-align: center;
             padding: 20px;
-            font-family: Arial, sans-serif;
+            font-family: 'RoboFan', Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
+        
         .logo {
             width: 128px;
             height: 128px;
             margin-bottom: 20px;
         }
+        
         .title {
             color: #FFA500;
-            font-size: 24px;
+            font-size: 32px;
             margin: 20px 0;
+            font-family: 'RoboFan', Arial, sans-serif;
         }
+        
         .button {
             background-color: #FF0000;
             color: white;
@@ -32,11 +48,23 @@
             font-size: 18px;
             margin: 20px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, transform 0.3s;
+            font-family: 'RoboFan', Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+        
         .button:hover {
             background-color: #CC0000;
+            transform: scale(1.05);
         }
+        
+        .button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        
         .game-card {
             background-color: #222;
             border: 2px solid #FF0000;
@@ -44,40 +72,69 @@
             padding: 20px;
             margin-top: 20px;
             display: none;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
         }
+        
         .game-link {
             color: white;
             text-decoration: underline;
             display: block;
             margin: 10px 0;
         }
+        
         .game-link:hover {
             color: #FFA500;
         }
-        .loading {
-            display: none;
-            color: white;
+        
+        .game-info {
+            text-align: left;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+        
+        .game-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .loading, .game-count {
             margin: 20px;
+        }
+        
+        .dice-icon {
+            margin-right: 10px;
+            display: inline-block;
         }
     </style>
 </head>
 <body>
     <img src="./assets/logo.png" alt="Tech Logo" class="logo">
-    <h1 class="title">Techsmith314 Game Selector</h1>
-    <button id="pickButton" class="button">Choose a Random Game</button>
+    <h1 class="title">MTPlay a Game</h1>
+    
+    <button id="pickButton" class="button" disabled>
+        <span class="dice-icon">🎲</span> Choose a Random Game
+    </button>
+    
     <div id="loading" class="loading">Loading games...</div>
+    <div id="gameCount" class="game-count" style="display: none;"></div>
 
     <div id="gameCard" class="game-card">
-        <h2 id="gameName"></h2>
+        <div class="game-title" id="gameName"></div>
         <a id="gameLink" class="game-link" target="_blank">View on Steam</a>
-        <p>Suggested by: <span id="suggester"></span></p>
-        <p>Date: <span id="date"></span></p>
+        <div class="game-info">
+            <p>Suggested by: <span id="suggester"></span></p>
+            <p>Date: <span id="date"></span></p>
+        </div>
     </div>
 
     <script>
         let games = [];
         const button = document.getElementById('pickButton');
         const loading = document.getElementById('loading');
+        const gameCount = document.getElementById('gameCount');
         const gameCard = document.getElementById('gameCard');
 
         // Load games when page loads
@@ -87,6 +144,7 @@
             try {
                 button.disabled = true;
                 loading.style.display = 'block';
+                gameCount.style.display = 'none';
 
                 const response = await fetch('./Tech Game Database.csv');
                 const text = await response.text();
@@ -96,17 +154,71 @@
                     skipEmptyLines: true
                 });
 
-                games = result.data
-                    .map(row => ({
-                        name: row['anchor_af404b (3)'] || 'Unknown Game',
-                        url: row['anchor_af404b href'] || '',
-                        username: row['username_f9f2ca'] || 'Anonymous',
-                        timestamp: row['timestamp_f9f2ca'] ? row['timestamp_f9f2ca'].replace('— \n', '') : 'Unknown Date'
-                    }))
-                    .filter(game => game.name !== 'Unknown Game' && game.url);
+                // Process the data to extract game information
+                const processedGames = [];
+                
+                result.data.forEach(row => {
+                    // Find Steam URL
+                    let steamUrl = '';
+                    for (const [key, value] of Object.entries(row)) {
+                        if (key.includes('href') && value && value.includes('store.steampowered.com')) {
+                            steamUrl = value;
+                            break;
+                        }
+                    }
+                    
+                    // Only process rows with Steam URLs
+                    if (steamUrl) {
+                        // Try to find game name - first check markup fields
+                        let gameName = '';
+                        
+                        // Check markup__75297 first as it often contains the game name
+                        if (row['markup__75297'] && !row['markup__75297'].includes('https://')) {
+                            gameName = row['markup__75297']
+                                // Remove quotes if present
+                                .replace(/^"(.+)"$/, '$1')
+                                .replace(/^\\"(.+)\\"$/, '$1')
+                                // Trim surrounding whitespace
+                                .trim();
+                        }
+                        
+                        // If we couldn't get a name from markup, extract from the URL
+                        if (!gameName) {
+                            // Extract game name from the URL
+                            const urlParts = steamUrl.split('/');
+                            const gameNameFromUrl = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
+                            gameName = gameNameFromUrl.replace(/_/g, ' ').replace(/-/g, ' ');
+                        }
+                        
+                        // Get username
+                        const username = row['username_c19a55'] || 'Anonymous';
+                        
+                        // Get timestamp and clean it
+                        let timestamp = row['timestamp_c19a55'] || 'Unknown Date';
+                        // Remove "— \n" prefix if present
+                        if (timestamp.startsWith('— \n')) {
+                            timestamp = timestamp.substring(3).trim();
+                        }
+                        
+                        // Add to processed games
+                        processedGames.push({
+                            name: gameName,
+                            url: steamUrl,
+                            username: username,
+                            timestamp: timestamp
+                        });
+                    }
+                });
 
-                button.disabled = false;
+                games = processedGames;
+                
+                // Update UI
                 loading.style.display = 'none';
+                gameCount.textContent = `${games.length} games loaded`;
+                gameCount.style.display = 'block';
+                button.disabled = false;
+                
+                console.log(`Loaded ${games.length} games`);
             } catch (error) {
                 console.error('Error loading games:', error);
                 loading.textContent = 'Error loading games. Please try again later.';

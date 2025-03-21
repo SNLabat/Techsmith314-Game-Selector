@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import Papa from 'papaparse';
 import { Dices } from 'lucide-react';
 
@@ -26,18 +26,67 @@ const GameRandomizer = () => {
   useEffect(() => {
     const loadGames = async () => {
       try {
-        const response = await window.fs.readFile('./Tech Game Database.csv', { encoding: 'utf8' });
+        const response = await window.fs.readFile('Tech Game Database.csv', { encoding: 'utf8' });
         const result = Papa.parse(response, {
           header: true,
           skipEmptyLines: true
         });
 
-        const processedGames = result.data.map(row => ({
-          name: row['anchor_af404b (3)'] || 'Unknown Game',
-          url: row['anchor_af404b href'] || '',
-          username: row['username_f9f2ca'] || 'Anonymous',
-          timestamp: row['timestamp_f9f2ca'] ? row['timestamp_f9f2ca'].replace('— \n', '') : 'Unknown Date'
-        })).filter(game => game.name !== 'Unknown Game' && game.url);
+        // Process the data to extract game information
+        const processedGames = [];
+        
+        result.data.forEach(row => {
+          // Find Steam URL
+          let steamUrl = '';
+          for (const [key, value] of Object.entries(row)) {
+            if (key.includes('href') && value && value.includes('store.steampowered.com')) {
+              steamUrl = value;
+              break;
+            }
+          }
+          
+          // Only process rows with Steam URLs
+          if (steamUrl) {
+            // Try to find game name - first check markup fields
+            let gameName = '';
+            
+            // Check markup__75297 first as it often contains the game name
+            if (row['markup__75297'] && !row['markup__75297'].includes('https://')) {
+              gameName = row['markup__75297']
+                // Remove quotes if present
+                .replace(/^"(.+)"$/, '$1')
+                .replace(/^\\"(.+)\\"$/, '$1')
+                // Trim surrounding whitespace
+                .trim();
+            }
+            
+            // If we couldn't get a name from markup, extract from the URL
+            if (!gameName) {
+              // Extract game name from the URL
+              const urlParts = steamUrl.split('/');
+              const gameNameFromUrl = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
+              gameName = gameNameFromUrl.replace(/_/g, ' ').replace(/-/g, ' ');
+            }
+            
+            // Get username (from username_c19a55)
+            const username = row['username_c19a55'] || 'Anonymous';
+            
+            // Get timestamp and clean it
+            let timestamp = row['timestamp_c19a55'] || 'Unknown Date';
+            // Remove "— \n" prefix if present
+            if (timestamp.startsWith('— \n')) {
+              timestamp = timestamp.substring(3).trim();
+            }
+            
+            // Add to processed games
+            processedGames.push({
+              name: gameName,
+              url: steamUrl,
+              username: username,
+              timestamp: timestamp
+            });
+          }
+        });
 
         setGames(processedGames);
         setLoading(false);
@@ -67,16 +116,16 @@ const GameRandomizer = () => {
             <div className="flex flex-col items-center space-y-4">
               <div className="w-32 h-32">
                 <img
-                  src="./assets/logo.png"
+                  src="/api/placeholder/128/128"
                   alt="Tech Logo"
                   className="w-full h-full object-contain"
                 />
               </div>
-              <h1 className="text-3xl font-bold text-[#FFA500] font-robofan">MTPlay a Game</h1>
+              <h1 className="text-3xl font-bold text-orange-500 font-robofan">Techsmith314 Game Selector</h1>
             </div>
 
             {/* Main Card */}
-            <Card className="bg-zinc-900 border-[#FFA500]">
+            <Card className="bg-zinc-900 border-orange-500">
               <CardContent className="pt-6 space-y-6">
                 {/* Button Section */}
                 <div className="flex justify-center">
@@ -84,8 +133,7 @@ const GameRandomizer = () => {
                     onClick={pickRandomGame} 
                     disabled={loading || games.length === 0}
                     size="lg"
-                    variant="destructive"
-                    className="w-64 !bg-[#FF0000] hover:!bg-[#CC0000] text-white transition-all hover:scale-105 font-robofan"
+                    className="w-64 bg-red-600 hover:bg-red-700 text-white transition-all hover:scale-105 font-robofan"
                   >
                     <Dices className="mr-2 h-4 w-4" />
                     Choose a Random Game
@@ -99,9 +147,16 @@ const GameRandomizer = () => {
                   </div>
                 )}
 
+                {/* Game Count */}
+                {!loading && (
+                  <div className="text-center text-white font-robofan">
+                    {games.length} games loaded
+                  </div>
+                )}
+
                 {/* Selected Game Card */}
                 {selectedGame && (
-                  <Card className="bg-zinc-800 border-[#FF0000]">
+                  <Card className="bg-zinc-800 border-red-600">
                     <CardContent className="pt-6">
                       <div className="space-y-4">
                         <div>
@@ -112,7 +167,7 @@ const GameRandomizer = () => {
                             href={selectedGame.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-white hover:text-[#FFA500] underline transition-colors font-robofan"
+                            className="text-white hover:text-orange-500 underline transition-colors font-robofan"
                           >
                             View on Steam
                           </a>
