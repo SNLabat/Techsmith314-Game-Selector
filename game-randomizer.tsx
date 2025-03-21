@@ -26,7 +26,7 @@ const GameRandomizer = () => {
   useEffect(() => {
     const loadGames = async () => {
       try {
-        const response = await window.fs.readFile('./MTP Game Database.csv', { encoding: 'utf8' });
+        const response = await window.fs.readFile('./Tech Game Database.csv', { encoding: 'utf8' });
         const result = Papa.parse(response, {
           header: true,
           skipEmptyLines: true
